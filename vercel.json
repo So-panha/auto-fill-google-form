@@ -1,0 +1,22 @@
+{
+  "builds": [
+    {
+      "src": "frontend-site/package.json",
+      "use": "@vercel/static-build"
+    },
+    {
+      "src": "backend-site/index.py",
+      "use": "@vercel/python"
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "backend-site/index.py"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "frontend-site/$1"
+    }
+  ]
+}
