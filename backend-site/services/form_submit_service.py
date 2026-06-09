@@ -12,6 +12,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from schemas import FormRequest
 from .google_form_parser import GoogleFormService
 import time
+import os
 
 class FormSubmissionService:
     def __init__(self, service_data=None):
@@ -29,23 +30,59 @@ class FormSubmissionService:
                 status_code=status.HTTP_400_BAD_REQUEST, 
                 detail=f"Failed to fetch form structure: {str(e)}"
             )
+        
+    def _get_driver(self):
+        # 1. Force Selenium to use Vercel's temporary writable directory
+        os.environ["SELENIUM_MANAGER_BASE_CACHE"] = "/tmp/.cache/selenium"
 
-    def _run_selenium_submission(self, final_prefilled_url: str) -> bool:
         options = Options()
-        options.add_argument("--headless=new")
+        
+        # 2. Critical Serverless Headless Arguments
+        options.add_argument("--headless=new") # Updated syntax for modern Selenium
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
-        options.add_argument("--start-maximized")
+        options.add_argument("--disable-gpu")
+        options.add_argument("--single-process") # Crucial for limited serverless environments
+        
+        # 3. Anti-Detection Arguments (Since Google blocks basic automation)
         options.add_argument("--disable-blink-features=AutomationControlled")
         options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        options.add_experimental_option("useAutomationExtension", False)
 
-        driver = webdriver.Chrome(options=options)
+        # 4. Point to the Chromium binary installed on the Vercel container
+        # (See deployment note below)
+        chrome_binary_path = "/usr/bin/chromium" # Default location for Linux packages
+        if os.path.exists(chrome_binary_path):
+            options.binary_location = chrome_binary_path
+
+        # 5. Initialize the driver safely
+        try:
+            driver = webdriver.Chrome(options=options)
+            
+            # Script to completely hide Selenium presence from Google Forms
+            driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
+                "source": "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
+            })
+            
+            return driver
+        except Exception as e:
+            print(f"Driver initialization failed: {e}")
+            raise e
+    def _run_selenium_submission(self, final_prefilled_url: str) -> bool:
+        # options = Options()
+        # options.add_argument("--headless=new")
+        # options.add_argument("--no-sandbox")
+        # options.add_argument("--disable-dev-shm-usage")
+        # options.add_argument("--start-maximized")
+        # options.add_argument("--disable-blink-features=AutomationControlled")
+        # options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        # driver = webdriver.Chrome(options=options)
+        driver = self._get_driver()
         submission_success = False
 
         try:
             driver.get(final_prefilled_url)
             time.sleep(1.5)
-
             max_pages = 15
             for page in range(1, max_pages + 1):
                 time.sleep(1.5)  
