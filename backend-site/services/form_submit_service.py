@@ -9,6 +9,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.chrome.service import Service
 from schemas import FormRequest
 from .google_form_parser import GoogleFormService
 import time
@@ -32,42 +33,28 @@ class FormSubmissionService:
             )
         
     def _get_driver(self):
-        # 1. Force Selenium to use Vercel's temporary writable directory
-        os.environ["SELENIUM_MANAGER_BASE_CACHE"] = "/tmp/.cache/selenium"
-
         options = Options()
-        
-        # 2. Critical Serverless Headless Arguments
-        options.add_argument("--headless=new") # Updated syntax for modern Selenium
+        options.add_argument("--headless=new") # Modern headless mode
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
         options.add_argument("--disable-gpu")
-        options.add_argument("--single-process") # Crucial for limited serverless environments
-        
-        # 3. Anti-Detection Arguments (Since Google blocks basic automation)
-        options.add_argument("--disable-blink-features=AutomationControlled")
-        options.add_experimental_option("excludeSwitches", ["enable-automation"])
-        options.add_experimental_option("useAutomationExtension", False)
+        options.add_argument("--single-process") # Keeps memory usage down on Vercel
 
-        # 4. Point to the Chromium binary installed on the Vercel container
-        # (See deployment note below)
-        chrome_binary_path = "/usr/bin/chromium" # Default location for Linux packages
-        if os.path.exists(chrome_binary_path):
-            options.binary_location = chrome_binary_path
+        # 1. Point options directly to the Vercel-installed Chromium binary
+        options.binary_location = "/usr/bin/chromium"
 
-        # 5. Initialize the driver safely
+        # 2. MANUALLY DEFINE THE SERVICE PATH
+        # This prevents the Rust 'selenium-manager' binary from running!
+        service = Service(executable_path="/usr/bin/chromedriver")
+
         try:
-            driver = webdriver.Chrome(options=options)
-            
-            # Script to completely hide Selenium presence from Google Forms
-            driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
-                "source": "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
-            })
-            
+            # 3. Pass both service and options explicitly
+            driver = webdriver.Chrome(service=service, options=options)
             return driver
         except Exception as e:
-            print(f"Driver initialization failed: {e}")
+            print(f"Failed to boot driver: {str(e)}")
             raise e
+        
     def _run_selenium_submission(self, final_prefilled_url: str) -> bool:
         # options = Options()
         # options.add_argument("--headless=new")
