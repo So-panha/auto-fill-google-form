@@ -32,6 +32,6 @@ if settings.BACKEND_CORS_ORIGINS:
 # Include core API router   
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
-@app.get("/")
+@app.get("/check")
 def root():
     return {"message": "Welcome to auto fill google form API"}
