@@ -78,13 +78,18 @@
             <div class="empty-state-content">
               <p>No files uploaded yet. Drop an Excel file on the left to initialize processing layout parameters.</p>
               
-              <button class="generate-template-btn" @click="generateExcelTemplate">
-                <svg class="excel-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <button 
+                class="generate-template-btn" 
+                :disabled="!config.url || isTemplateLoading"
+                @click="generateExcelTemplate"
+              >
+                <svg v-if="!isTemplateLoading" class="excel-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <path d="M14 2H6C5.44772 2 5 2.44772 5 3V21C5 21.5523 5.44772 22 6 22H18C18.5523 22 19 21.5523 19 21V7L14 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                   <path d="M14 2V7H19" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                   <path d="M8 13H16M8 17H16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                 </svg>
-                Generate Excel Template
+                <span v-else class="spinner"></span>
+                {{ isTemplateLoading ? 'Extracting API Fields...' : 'Generate Excel Template' }}
               </button>
             </div>
           </div>
@@ -123,11 +128,10 @@
 
 <script setup>
 import { ref, reactive, computed } from 'vue';
-// Crucial: Run 'npm install xlsx' in your backend-site UI client root to parse this library module
 import * as XLSX from 'xlsx';
 
 const config = reactive({
-  url: 'https://docs.google.com/forms/d/1aP19-B6P5e1NRDGGGpbabrGfIjFOGU3gEqeGLmpb28M/prefill',
+  url: 'https://docs.google.com/forms/d/e/1jKVACH7C5ctkJYiyvkHMg8fg/viewform',
   number: 10,
 });
 
@@ -138,53 +142,62 @@ const fileState = reactive({
 });
 
 const isDragging = ref(false);
+const isTemplateLoading = ref(false);
 const operationStatus = ref('idle'); // idle, processing, success, error
 const submittalProgress = ref(0);
 const executionReport = ref(null);
-
-// Static Extraction Data from your Post response schema array
-const extractedQuestions = [
-  "1. How old are you?",
-  "2. What is your gender?",
-  "3. What grade are you study?",
-  "4. Do you used to join school’s trip?",
-  "5. How often do you participate in school trips organized by the school?",
-  "6. Have you ever experienced difficulties to get info for a school trip?",
-  "7. What problems have you faced during school’s trip?",
-  "8. Have you ever missed important information about a school trip?",
-  "9. Who you asking when you forget the datetime of your school’s trip?",
-  "10. What challenges you face when join school trips manually?",
-  "11. How hard you faced, when you want to know about your attendance during your trip?",
-  "12. Have you ever imagined having a digital platform that allows you to see info of your school’s trip?",
-  "13. Do you think an online trip management system would make trip easier than traditional school’s flow?",
-  "14. Would you prefer receiving trip information through:",
-  "15. Do you think digital permission forms are better than paper-based forms?",
-  "16. How important is real-time communication between teachers, students, during trips?",
-  "17. Do you think a trip management system can improve our attendant during trips?",
-  "18. How useful would attendant tracking be during school trips?",
-  "19. Would you support online school management trip?",
-  "20. Overall, how satisfied are you with the current school trip management process in your school?"
-];
 
 const isSubmitDisabled = computed(() => {
   return !fileState.rawFile || !config.url || operationStatus.value === 'processing';
 });
 
-// Client side browser engine builder for automated templates download
-const generateExcelTemplate = () => {
-  // Format dataset array structure to map object matching matrix headers
-  const worksheetData = extractedQuestions.map(question => ({
-    "Question": question,
-    "Exception": "" // Kept clean and blank for human inputs configuration strings
-  }));
+// FULLY DYNAMIC EXCEL ENGINE COUPLING WITH YOUR BACKEND API EXTRACTOR
+const generateExcelTemplate = async () => {
+  if (!config.url) return;
+  
+  isTemplateLoading.value = true;
+  executionReport.value = `[API FETCH]: Initializing layout extraction pipeline from target URL...\n`;
 
-  // Build excel worksheet metadata instances
-  const worksheet = XLSX.utils.json_to_sheet(worksheetData);
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, "Form Template Configuration");
+  try {
+    const response = await fetch('/api/v1/google_form/data_extract', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ url: config.url })
+    });
 
-  // Write out file downloads streams triggers across global DOM instances 
-  XLSX.writeFile(workbook, "google_form_exception_template.xlsx");
+    if (!response.ok) {
+      throw new Error(`Data extraction pipeline failed with status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    
+    if (!data.questions || data.questions.length === 0) {
+      throw new Error("No visible structural fields found inside response schema payload.");
+    }
+
+    // Map title fields dynamically right out of the live API payload
+    const worksheetData = data.questions.map(q => ({
+      "Question": q.title ? q.title.trim() : "Unknown Field Title",
+      "Exception": "" 
+    }));
+
+    // Build the sheet file setup
+    const worksheet = XLSX.utils.json_to_sheet(worksheetData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Form Configuration");
+
+    // Auto trigger file generation stream inside user's web browser tab instances
+    XLSX.writeFile(workbook, "google_form_live_template.xlsx");
+    
+    executionReport.value += `[SUCCESS]: Template successfully compiled containing ${data.questions.length} active questions.\n`;
+  } catch (err) {
+    executionReport.value += `[TEMPLATE CRITICAL FAULT]: Extraction workflow aborted.\nDetails: ${err.message}\n`;
+    alert(`Could not extract form data: ${err.message}`);
+  } finally {
+    isTemplateLoading.value = false;
+  }
 };
 
 const processRawFile = (file) => {
@@ -250,7 +263,7 @@ const initiateAutomatedFlow = async () => {
    Force Perfect Full-Screen Centering Override
    -------------------------------------------------------- */
 .fullscreen-viewport {
-  position: fixed; /* Bypasses parent block layout rules completely */
+  position: fixed; 
   top: 0;
   left: 0;
   width: 100vw;
@@ -259,15 +272,12 @@ const initiateAutomatedFlow = async () => {
   padding: 0;
   box-sizing: border-box;
   background: linear-gradient(135deg, #16d1df 0%, #2979ff 100%);
-  
-  /* Flexbox Centering Layer */
   display: flex !important;
   justify-content: center !important;
   align-items: center !important;
   z-index: 9999;
 }
 
-/* Fixed Dashboard Container Aspect Ratios */
 .app-interface-container {
   width: 90vw;
   height: 85vh;
@@ -289,7 +299,7 @@ const initiateAutomatedFlow = async () => {
 .interface-header {
   margin-bottom: 2rem;
   flex-shrink: 0;
-  text-align: left; /* Prevents inheritances from centering titles unexpectedly */
+  text-align: left;
 }
 .header-main-row {
   display: flex;
@@ -433,7 +443,7 @@ const initiateAutomatedFlow = async () => {
   gap: 1.25rem;
 }
 
-/* NEW STYLES FOR THE GENERATE TEMPLATE LAYOUT ACTION BUTTON */
+/* ACTION BUTTON STYLING */
 .generate-template-btn {
   display: inline-flex;
   align-items: center;
@@ -449,20 +459,40 @@ const initiateAutomatedFlow = async () => {
   box-shadow: 0 4px 12px rgba(76, 175, 80, 0.2);
   transition: all 0.2s ease;
 }
-.generate-template-btn:hover {
+.generate-template-btn:hover:not(:disabled) {
   background-color: #388e3c;
   transform: translateY(-1px);
+}
+.generate-template-btn:disabled {
+  background-color: #a5d6a7;
+  color: #e8f5e9;
+  cursor: not-allowed;
+  box-shadow: none;
 }
 .excel-icon {
   width: 18px;
   height: 18px;
 }
 
+/* LOADING SPINNER SETUP */
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #ffffff;
+  border-bottom-color: transparent;
+  border-radius: 50%;
+  display: inline-block;
+  animation: rotation 1s linear infinite;
+}
+@keyframes rotation {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
 .file-status-list {
   flex: 1;
 }
 
-/* Status Item Card Block */
 .state-card {
   display: flex;
   flex-direction: column;
@@ -483,7 +513,6 @@ const initiateAutomatedFlow = async () => {
   gap: 1rem;
 }
 
-/* Reference status circles setup */
 .status-badge-icon {
   width: 18px;
   height: 18px;
@@ -537,7 +566,6 @@ const initiateAutomatedFlow = async () => {
   line-height: 1;
 }
 
-/* Horizontal Line Progress Bars */
 .progress-container {
   display: flex;
   flex-direction: column;
