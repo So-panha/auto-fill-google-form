@@ -75,7 +75,18 @@
           </div>
           
           <div v-else class="tracker-empty-state">
-            <p>No files uploaded yet. Drop an Excel file on the left to initialize processing layout parameters.</p>
+            <div class="empty-state-content">
+              <p>No files uploaded yet. Drop an Excel file on the left to initialize processing layout parameters.</p>
+              
+              <button class="generate-template-btn" @click="generateExcelTemplate">
+                <svg class="excel-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M14 2H6C5.44772 2 5 2.44772 5 3V21C5 21.5523 5.44772 22 6 22H18C18.5523 22 19 21.5523 19 21V7L14 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M14 2V7H19" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M8 13H16M8 17H16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+                Generate Excel Template
+              </button>
+            </div>
           </div>
         </div>
         
@@ -112,9 +123,11 @@
 
 <script setup>
 import { ref, reactive, computed } from 'vue';
+// Crucial: Run 'npm install xlsx' in your backend-site UI client root to parse this library module
+import * as XLSX from 'xlsx';
 
 const config = reactive({
-  url: 'https://docs.google.com/forms/d/e/1FAIpQLSdH8CLEYRE5JKlOANv3aVSxEdj...',
+  url: 'https://docs.google.com/forms/d/1aP19-B6P5e1NRDGGGpbabrGfIjFOGU3gEqeGLmpb28M/prefill',
   number: 10,
 });
 
@@ -129,9 +142,50 @@ const operationStatus = ref('idle'); // idle, processing, success, error
 const submittalProgress = ref(0);
 const executionReport = ref(null);
 
+// Static Extraction Data from your Post response schema array
+const extractedQuestions = [
+  "1. How old are you?",
+  "2. What is your gender?",
+  "3. What grade are you study?",
+  "4. Do you used to join school’s trip?",
+  "5. How often do you participate in school trips organized by the school?",
+  "6. Have you ever experienced difficulties to get info for a school trip?",
+  "7. What problems have you faced during school’s trip?",
+  "8. Have you ever missed important information about a school trip?",
+  "9. Who you asking when you forget the datetime of your school’s trip?",
+  "10. What challenges you face when join school trips manually?",
+  "11. How hard you faced, when you want to know about your attendance during your trip?",
+  "12. Have you ever imagined having a digital platform that allows you to see info of your school’s trip?",
+  "13. Do you think an online trip management system would make trip easier than traditional school’s flow?",
+  "14. Would you prefer receiving trip information through:",
+  "15. Do you think digital permission forms are better than paper-based forms?",
+  "16. How important is real-time communication between teachers, students, during trips?",
+  "17. Do you think a trip management system can improve our attendant during trips?",
+  "18. How useful would attendant tracking be during school trips?",
+  "19. Would you support online school management trip?",
+  "20. Overall, how satisfied are you with the current school trip management process in your school?"
+];
+
 const isSubmitDisabled = computed(() => {
   return !fileState.rawFile || !config.url || operationStatus.value === 'processing';
 });
+
+// Client side browser engine builder for automated templates download
+const generateExcelTemplate = () => {
+  // Format dataset array structure to map object matching matrix headers
+  const worksheetData = extractedQuestions.map(question => ({
+    "Question": question,
+    "Exception": "" // Kept clean and blank for human inputs configuration strings
+  }));
+
+  // Build excel worksheet metadata instances
+  const worksheet = XLSX.utils.json_to_sheet(worksheetData);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Form Template Configuration");
+
+  // Write out file downloads streams triggers across global DOM instances 
+  XLSX.writeFile(workbook, "google_form_exception_template.xlsx");
+};
 
 const processRawFile = (file) => {
   if (!file) return;
@@ -171,8 +225,6 @@ const initiateAutomatedFlow = async () => {
   payload.append('number', config.number.toString());
   payload.append('file', fileState.rawFile);
 
-  const baseUrl = import.meta.env.VITE_API_BASE_URL;
-
   try {
     const response = await fetch('/api/v1/google_form/auto_fill', {
       method: 'POST',
@@ -192,6 +244,7 @@ const initiateAutomatedFlow = async () => {
   }
 };
 </script>
+
 <style scoped>
 /* --------------------------------------------------------
    Force Perfect Full-Screen Centering Override
@@ -373,6 +426,38 @@ const initiateAutomatedFlow = async () => {
   align-items: center;
   flex: 1;
 }
+.empty-state-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+/* NEW STYLES FOR THE GENERATE TEMPLATE LAYOUT ACTION BUTTON */
+.generate-template-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1.25rem;
+  background-color: #4caf50;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(76, 175, 80, 0.2);
+  transition: all 0.2s ease;
+}
+.generate-template-btn:hover {
+  background-color: #388e3c;
+  transform: translateY(-1px);
+}
+.excel-icon {
+  width: 18px;
+  height: 18px;
+}
+
 .file-status-list {
   flex: 1;
 }

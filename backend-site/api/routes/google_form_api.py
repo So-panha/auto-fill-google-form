@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Form, Form, status
 from schemas import FormRequest, FormResponse
-from services import FormService, GoogleFormService
+from services import FormSubmissionService, GoogleFormService
 from fastapi import File, UploadFile
 from fastapi import APIRouter, HTTPException
 from schemas import FormRequest, QuestionReq
@@ -12,7 +12,7 @@ router = APIRouter()
 async def auto_fill ( url: str = Form(...), number: str = Form(...), file: UploadFile = File(...)):
     
     form_in = FormRequest(url=url, number=number)
-    service_submit = FormService()
+    service_submit = FormSubmissionService()
     return await service_submit.submit_excel(form_in, file)      
 
 
