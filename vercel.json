@@ -6,9 +6,11 @@
       "use": "@vercel/python"
     },
     {
-      "src": "frontend-site/package.json",
+      "src": "frontend-site/app/package.json",
       "use": "@vercel/static-build",
-      "config": { "distDir": "dist" }
+      "config": {
+        "distDir": "dist"
+      }
     }
   ],
   "rewrites": [
@@ -18,7 +20,7 @@
     },
     {
       "source": "/(.*)",
-      "destination": "frontend-site/$1"
+      "destination": "frontend-site/app/$1"
     }
   ]
 }
