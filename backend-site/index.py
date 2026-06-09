@@ -1,3 +1,11 @@
+import os
+import sys
+
+# Tell Python to look inside the 'backend-site' directory for modules
+current_dir = os.path.dirname(os.path.abspath(__file__))
+if current_dir not in sys.path:
+    sys.path.insert(0, current_dir)
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from core import settings, app_exception_handler, AppException
