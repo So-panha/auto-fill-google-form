@@ -171,8 +171,10 @@ const initiateAutomatedFlow = async () => {
   payload.append('number', config.number.toString());
   payload.append('file', fileState.rawFile);
 
+  const baseUrl = import.meta.env.VITE_API_BASE_URL;
+
   try {
-    const response = await fetch('${import.meta.env.VITE_API_BASE_URL}/api/v1/google_form/auto_fill', {
+    const response = await fetch('${baseUrl}/api/v1/google_form/auto_fill', {
       method: 'POST',
       body: payload
     });
