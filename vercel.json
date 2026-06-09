@@ -16,7 +16,7 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "backend-site/api/routes"
+      "destination": "backend-site/api/routes/google_form_api.py"
     },
     {
       "source": "/(.*)",
