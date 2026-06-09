@@ -7,5 +7,6 @@ python-multipart
 httpx
 requests
 beautifulsoup4
-webdriver-manager
-selenium
+# webdriver-manager
+# selenium
+playwright
