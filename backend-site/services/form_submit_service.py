@@ -538,6 +538,9 @@
 
 
 
+
+
+
 import asyncio
 import random
 import sys
@@ -573,7 +576,7 @@ class FormSubmissionService:
         
     async def _execute_via_browserless_api(self, final_prefilled_url: str) -> bool:
         """
-        Windows Safe Fallback: Executes the automation steps by sending a direct 
+        REST API Fallback: Executes the automation steps by sending a direct 
         Puppeteer script execution payload directly to Browserless over HTTP.
         """
         import httpx
@@ -584,7 +587,6 @@ class FormSubmissionService:
         export default async ({{ page }}) => {{
             await page.setViewport({{ width: 1440, height: 900 }});
             
-            // Go to prefilled URL and wait for page elements to settle
             await page.goto('{final_prefilled_url}', {{ waitUntil: 'networkidle2', timeout: 30000 }});
             await new Promise(r => setTimeout(r, 2000));
             
@@ -598,7 +600,6 @@ class FormSubmissionService:
                     let operationalButtons = buttons.filter(b => b.className.includes('uArJb') || b.getAttribute('jsname') !== null);
                     if (operationalButtons.length === 0) operationalButtons = buttons;
                     
-                    // Look for Submit
                     let submitBtn = operationalButtons.find(b => {{
                         const innerStr = b.innerText ? b.innerText.toLowerCase() : "";
                         return innerStr.includes('submit') || innerStr.includes('បញ្ជូន') || b.outerHTML.includes('submit');
@@ -610,7 +611,6 @@ class FormSubmissionService:
                         return {{ clicked: true, finished: true }};
                     }}
                     
-                    // Look for Next
                     let nextBtn = operationalButtons.find(b => {{
                         const innerStr = b.innerText ? b.innerText.toLowerCase() : "";
                         return innerStr.includes('next') || innerStr.includes('បន្ទាប់') || innerStr.includes('continue');
@@ -633,7 +633,6 @@ class FormSubmissionService:
                 await new Promise(r => setTimeout(r, 2000));
             }}
             
-            // Allow buffer time for submission network traffic to clear out completely
             await new Promise(r => setTimeout(r, 3000));
             return {{ completed: true }};
         }};
@@ -644,14 +643,11 @@ class FormSubmissionService:
         async with httpx.AsyncClient(timeout=60.0) as client:
             try:
                 response = await client.post(browserless_url, content=javascript_code, headers=headers)
-                # FIXED CRITICAL LOGIC: If Browserless returns 200, the script executed cleanly.
-                # We count this as a complete success to stop throwing false 500 exceptions!
                 if response.status_code == 200:
-                    print("📡 Browserless Cloud executed and submitted form successfully!")
+                    print("📡 Browserless Cloud HTTP REST execution submitted form successfully!")
                     return True
                 else:
-                    print(f"❌ Browserless API server returned error status: {response.status_code}")
-                    print(f"Details: {response.text}")
+                    print(f"❌ Browserless REST API returned error status: {response.status_code}")
                     return False
             except Exception as e:
                 print(f"❌ Exception caught during HTTP execution: {e}")
@@ -659,10 +655,11 @@ class FormSubmissionService:
 
     async def _execute_automation_steps(self, final_prefilled_url: str) -> bool:
         """
-        Standard non-windows automation flow using live CDP sockets.
+        Standard automation flow using live CDP sockets.
+        FIXED: Updated endpoint path from /playwright to /chromium to resolve 404 errors.
         """
         submission_success = False
-        cdp_url = f"wss://chrome.browserless.io/playwright?token={self.browserless_key}"
+        cdp_url = f"wss://chrome.browserless.io/chromium?token={self.browserless_key}"
 
         async with async_playwright() as p:
             try:
@@ -721,21 +718,29 @@ class FormSubmissionService:
                 await context.close()
                 await browser.close()
             except Exception as e:
-                print("Automation error inside native CDP execution:", e)
+                print("⚠️ Live CDP WebSocket connection failed:", e)
                 submission_success = False
                 
         return submission_success
 
     async def _run_playwright_submission(self, final_prefilled_url: str) -> bool:
         """
-        Main routing gateway. Runs via serverless execution on local Windows 
-        to circumvent event-loop subprocess boundaries, or raw code on Vercel.
+        Main routing gateway. Runs via serverless execution.
+        FIXED: Automatically falls back to the HTTP REST API if WebSocket drops or fails on Vercel.
         """
         if sys.platform == 'win32':
             print("🔧 Windows environment detected. Shifting execution processing directly to Browserless Cloud REST API...")
             return await self._execute_via_browserless_api(final_prefilled_url)
         
-        return await self._execute_automation_steps(final_prefilled_url)
+        print("🚀 Running native Playwright CDP connection...")
+        success = await self._execute_automation_steps(final_prefilled_url)
+        
+        # Safe catch-all fallback loop for production server drops
+        if not success:
+            print("🔄 WebSocket connection failed or rejected. Dropping back to resilient HTTP REST API pipeline...")
+            return await self._execute_via_browserless_api(final_prefilled_url)
+            
+        return success
 
     async def submit_excel(self, form_request: FormRequest, file: UploadFile):
         data = await self._get_data(form_request.url)
