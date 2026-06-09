@@ -16,7 +16,6 @@
   "rewrites": [
     {
         "source": "/api/(.*)",
-        // "destination": "backend-site/index.py"
         "destination": "backend-site/index.py?html_path=$1"
     },
     {
