@@ -56,7 +56,7 @@ class GoogleFormService:
                         for choice in question_info[1]:
                             if isinstance(choice, list) and choice:
                                 opt_text = choice[0]
-                                if opt_text is not None:
+                                if opt_text is not None and opt_text !=  "":
                                     options.append(str(opt_text).strip())
 
                     questions.append({
